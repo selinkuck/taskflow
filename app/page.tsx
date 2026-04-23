@@ -157,7 +157,7 @@ export default function KanbanApp() {
     if (overData?.type === 'Column') newColumnId = overId as string; else if (overData?.type === 'Task') newColumnId = overData.task.column_id;
     if (newColumnId && active.data.current?.task.column_id !== newColumnId) {
       const movingTask = active.data.current?.task;
-      setColumns(prev => prev.map(col => { if (col.id === movingTask.column_id) return { ...col, tasks: col.tasks.filter(t => t.id !== activeId) }; if (col.id === newColumnId) return { ...col, tasks: [...col.tasks, { ...movingTask, column_id: newColumnId }] }; return col; }));
+      setColumns(prev => prev.map(col => { if (col.id === movingTask.column_id) return { ...col, tasks: col.tasks.filter((t: any) => t.id !== activeId) }; if (col.id === newColumnId) return { ...col, tasks: [...col.tasks, { ...movingTask, column_id: newColumnId }] }; return col; }));
       await supabase.from('tasks').update({ column_id: newColumnId }).eq('id', activeId); fetchKanbanData(activeBoard.id);
     }
   };
