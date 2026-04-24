@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "../../lib/supabase"; // Klasör yapına uygun yol
 import { useRouter } from "next/navigation";
 import { Layout, Mail, Lock, ArrowRight } from "lucide-react";
 
@@ -42,11 +42,27 @@ export default function LoginPage() {
         <form onSubmit={handleAuth} className="space-y-4">
           <div className="relative">
             <Mail className="absolute left-4 top-3.5 text-slate-400" size={20} />
-            <input type="email" placeholder="E-posta" className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            {/* Yazı rengi text-black olarak güncellendi */}
+            <input 
+              type="email" 
+              placeholder="E-posta" 
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-black font-semibold" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              required 
+            />
           </div>
           <div className="relative">
             <Lock className="absolute left-4 top-3.5 text-slate-400" size={20} />
-            <input type="password" placeholder="Şifre" className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            {/* Yazı rengi text-black olarak güncellendi */}
+            <input 
+              type="password" 
+              placeholder="Şifre" 
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-black font-semibold" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              required 
+            />
           </div>
           <button disabled={loading} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2">
             {loading ? 'İşleniyor...' : isRegister ? 'Kayıt Ol' : 'Giriş Yap'} <ArrowRight size={18} />
