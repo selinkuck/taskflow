@@ -99,7 +99,6 @@ export default function KanbanApp() {
   const [columns, setColumns] = useState<any[]>([]);
   const [activeItem, setActiveItem] = useState<any>(null);
   
-  // MODAL STATES
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -135,14 +134,26 @@ export default function KanbanApp() {
     if (cols) setColumns(cols.map(c => ({ ...c, tasks: tasks ? tasks.filter((t: any) => t.column_id === c.id) : [] })));
   };
 
+  // PROJE SİLME FONKSİYONU (GÜNCELLENDİ)
   const confirmDeleteBoard = async () => {
     if (!boardToDelete) return;
-    const { error } = await supabase.from('boards').delete().eq('id', boardToDelete.id);
-    if (error) alert("Hata: " + error.message);
-    else {
-      fetchBoards(user.id);
+    try {
+      setLoading(true);
+      // Zincirleme silme işlemi: Görevler -> Sütunlar -> Üyeler -> Board
+      await supabase.from('tasks').delete().eq('board_id', boardToDelete.id);
+      await supabase.from('columns').delete().eq('board_id', boardToDelete.id);
+      await supabase.from('board_members').delete().eq('board_id', boardToDelete.id);
+      const { error } = await supabase.from('boards').delete().eq('id', boardToDelete.id);
+
+      if (error) throw error;
+
+      await fetchBoards(user.id);
       setIsDeleteBoardModalOpen(false);
       setBoardToDelete(null);
+    } catch (err: any) {
+      alert("Hata oluştu: " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -242,12 +253,12 @@ export default function KanbanApp() {
            </div>
         </div>
 
-        {/* --- MODALLAR --- */}
+        {/* MODALLAR */}
         {isBoardModalOpen && (<div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md z-[999] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-slate-900 animate-in zoom-in duration-200 border"><div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/30"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg tracking-tight"><div className="p-2 bg-blue-50 rounded-lg text-blue-600"><Rocket size={18} /></div> Yeni Proje</h3><button onClick={() => setIsBoardModalOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={20} /></button></div><div className="p-6"><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Proje Adı</label><input autoFocus type="text" value={boardInput} onChange={(e) => setBoardInput(e.target.value)} placeholder="Örn: Pazarlama Kampanyası" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all" /></div></div><div className="p-6 bg-slate-50/50 border-t border-slate-50 flex gap-3"><button onClick={() => setIsBoardModalOpen(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all uppercase text-[10px] tracking-widest">İptal</button><button onClick={handleCreateBoard} className="flex-1 px-4 py-3 bg-blue-600 rounded-xl text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all uppercase text-[10px] tracking-widest">Oluştur</button></div></div></div>)}
 
         {isJoinModalOpen && (<div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md z-[999] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-slate-900 animate-in zoom-in duration-200 border"><div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/30"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg tracking-tight"><div className="p-2 bg-blue-50 rounded-lg text-blue-600"><UserPlus size={18} /></div> Ekibe Katıl</h3><button onClick={() => setIsJoinModalOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={20} /></button></div><div className="p-6"><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Paylaşım Kodu</label><input autoFocus type="text" value={joinCodeInput} onChange={(e) => setJoinCodeInput(e.target.value)} placeholder="6 Haneli Kod" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all uppercase" /></div></div><div className="p-6 bg-slate-50/50 border-t border-slate-50 flex gap-3"><button onClick={() => setIsJoinModalOpen(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all uppercase text-[10px] tracking-widest">İptal</button><button onClick={handleJoinBoard} className="flex-1 px-4 py-3 bg-blue-600 rounded-xl text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all uppercase text-[10px] tracking-widest">Katıl</button></div></div></div>)}
 
-        {/* --- PROJE SİLME ONAY MODALI --- */}
+        {/* --- PROJE SİLME ONAY MODALI (DÜZELTİLDİ) --- */}
         {isDeleteBoardModalOpen && boardToDelete && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[1000] flex items-center justify-center p-4">
             <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden text-slate-900 animate-in zoom-in duration-200 border border-rose-100">
@@ -282,16 +293,16 @@ export default function KanbanApp() {
 
   return (
     <div className="min-h-screen bg-white p-6 flex flex-col items-center font-sans text-slate-900">
-      {/* ... KANBAN EKRANI (DEĞİŞMEDİ) ... */}
       <DndContext sensors={sensors} collisionDetection={rectIntersection} onDragStart={(e) => setActiveItem(e.active.data.current)} onDragEnd={onDragEnd}>
         <div className="w-full max-w-[1600px]">
           <header className="flex items-center justify-between mb-10 bg-white/80 backdrop-blur-md p-5 rounded-2xl border border-slate-100 sticky top-4 z-[50]">
             <div className="flex items-center gap-4 text-slate-800 font-bold">
-              <button onClick={() => setActiveBoard(null)} className="p-3 bg-slate-50 hover:bg-white rounded-xl border border-slate-100 transition-all active:scale-90 text-slate-500 hover:text-blue-600">←</button>
+              <button onClick={() => setActiveBoard(null)} className="p-3 bg-slate-50 hover:bg-white rounded-xl border border-slate-100 transition-all active:scale-90 text-slate-500 hover:text-blue-600 shadow-sm">←</button>
               <h1 onClick={() => { const n = prompt("Yeni Proje Adı:", activeBoard.name); if(n && n !== activeBoard.name) { supabase.from('boards').update({name: n}).eq('id', activeBoard.id).then(() => setActiveBoard({...activeBoard, name: n})); } }} className="text-2xl font-black tracking-tight cursor-pointer hover:text-blue-600 transition-all">{activeBoard.name}</h1>
             </div>
             <div className="flex gap-4"><button onClick={() => supabase.auth.signOut().then(() => router.push("/login"))} className="p-3 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm"><LogOut size={22} /></button></div>
           </header>
+          
           <div className="flex justify-center w-full">
             <div className="flex flex-row gap-6 overflow-x-auto pb-10 px-8 scrollbar-hide items-start">
               <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
@@ -305,16 +316,38 @@ export default function KanbanApp() {
                   </SortableColumn>
                 ))}
               </SortableContext>
-              <button onClick={() => { setColumnInput({ id: '', title: '' }); setIsColumnModalOpen(true); }} className="w-12 h-12 shrink-0 bg-slate-100 hover:bg-slate-200 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all duration-200 mt-2 text-slate-400 group active:scale-95 shadow-sm"><Plus size={24} strokeWidth={3} className="group-hover:text-slate-600"/></button>
+              
+              <button onClick={() => { setColumnInput({ id: '', title: '' }); setIsColumnModalOpen(true); }} 
+                className="w-12 h-12 shrink-0 bg-slate-100 hover:bg-slate-200 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all duration-200 mt-2 text-slate-400 group active:scale-95 shadow-sm">
+                <Plus size={24} strokeWidth={3} className="group-hover:text-slate-600"/>
+              </button>
             </div>
           </div>
         </div>
+        
         <DragOverlay dropAnimation={{ duration: 250 }}>
-          {activeItem?.type === 'Column' ? (<div className="bg-slate-50 p-5 rounded-2xl w-80 min-h-[400px] shadow-2xl border border-slate-200 opacity-90 scale-105 text-slate-900"><div className="flex items-center gap-2 mb-4 px-1"><MoveHorizontal size={18} className="text-slate-400" /><h2 className="font-black text-slate-400 uppercase text-[11px]">{activeItem.column.title}</h2></div><div className="bg-slate-200/30 rounded-xl p-2 shadow-inner border border-slate-200/50">{activeItem.column.tasks.map((t: any) => (<div key={t.id} className="bg-white p-4 rounded-xl border mb-3 shadow-sm text-sm font-bold text-slate-800">{t.content}</div>))}</div></div>) : activeItem?.type === 'Task' ? (<div className="bg-white p-4 rounded-xl border-2 shadow-2xl flex gap-3 items-start w-80 opacity-95 scale-105 text-slate-900 border-blue-500"><GripVertical size={18} className="text-slate-300 mt-1" /><span className="text-sm font-bold text-slate-800 leading-snug">{activeItem.task.content}</span></div>) : null}
+          {activeItem?.type === 'Column' ? (
+            <div className="bg-slate-50 p-5 rounded-2xl w-80 min-h-[400px] shadow-2xl border border-slate-200 opacity-90 scale-105 text-slate-900">
+              <div className="flex items-center gap-2 mb-4 px-1">
+                 <MoveHorizontal size={18} className="text-slate-400" />
+                 <h2 className="font-black text-slate-400 uppercase text-[11px]">{activeItem.column.title}</h2>
+              </div>
+              <div className="bg-slate-200/30 rounded-xl p-2 shadow-inner border border-slate-200/50">
+                {activeItem.column.tasks.map((t: any) => (<div key={t.id} className="bg-white p-4 rounded-xl border mb-3 shadow-sm text-sm font-bold text-slate-800">{t.content}</div>))}
+              </div>
+            </div>
+          ) : activeItem?.type === 'Task' ? (
+            <div className="bg-white p-4 rounded-xl border-2 shadow-2xl flex gap-3 items-start w-80 opacity-95 scale-105 text-slate-900 border-blue-500">
+              <GripVertical size={18} className="text-slate-300 mt-1" />
+              <span className="text-sm font-bold text-slate-800 leading-snug">{activeItem.task.content}</span>
+            </div>
+          ) : null}
         </DragOverlay>
       </DndContext>
-      {/* MODALLAR (AYNI KALDI) */}
+
+      {/* MODALLAR */}
       {isTaskModalOpen && (<div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md z-[999] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-slate-900 font-sans animate-in zoom-in duration-200 border"><div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/30"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg tracking-tight"><div className="p-2 bg-blue-50 rounded-lg text-blue-600"><Edit3 size={18} /></div> {modalData.id ? "Düzenle" : "Yeni Görev"}</h3><button onClick={() => setIsTaskModalOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={20} /></button></div><div className="p-6 space-y-5"><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Başlık</label><input autoFocus type="text" value={modalData.content} onChange={(e) => setModalData({...modalData, content: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all" /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Sorumlu</label><input type="email" value={modalData.assigned_to_email} onChange={(e) => setModalData({...modalData, assigned_to_email: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all" /></div><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Tarih</label><input type="date" value={modalData.due_date} onChange={(e) => setModalData({...modalData, due_date: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all cursor-pointer" /></div></div><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Açıklama</label><textarea value={modalData.description} onChange={(e) => setModalData({...modalData, description: e.target.value})} rows={2} className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 resize-none text-slate-600 font-medium text-sm transition-all" /></div></div><div className="p-6 bg-slate-50/50 border-t border-slate-50 flex gap-3"><button onClick={() => setIsTaskModalOpen(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all uppercase text-[10px] tracking-widest">İptal</button><button onClick={handleSaveTask} className="flex-1 px-4 py-3 bg-blue-600 rounded-xl text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all uppercase text-[10px] tracking-widest">Kaydet</button></div></div></div>)}
+
       {isColumnModalOpen && (<div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md z-[999] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-slate-900 animate-in zoom-in duration-200 border"><div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/30"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg tracking-tight"><div className="p-2 bg-blue-50 rounded-lg text-blue-600"><LayoutGrid size={18} /></div> {columnInput.id ? "Sütun Düzenle" : "Yeni Sütun"}</h3><button onClick={() => setIsColumnModalOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={20} /></button></div><div className="p-6"><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Sütun Başlığı</label><input autoFocus type="text" value={columnInput.title} onChange={(e) => setColumnInput({...columnInput, title: e.target.value})} placeholder="Örn: Yapılacaklar" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all" /></div></div><div className="p-6 bg-slate-50/50 border-t border-slate-50 flex gap-3"><button onClick={() => setIsColumnModalOpen(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all uppercase text-[10px] tracking-widest">İptal</button><button onClick={handleSaveColumn} className="flex-1 px-4 py-3 bg-blue-600 rounded-xl text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all uppercase text-[10px] tracking-widest">Kaydet</button></div></div></div>)}
     </div>
   );
