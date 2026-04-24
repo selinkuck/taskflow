@@ -9,7 +9,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { 
-  Plus, Trash2, LogOut, Users, X, Edit3, MoveHorizontal, Rocket, UserPlus, Kanban, GripVertical, AlignLeft, Calendar, LayoutGrid, Sparkles, ChevronRight
+  Plus, Trash2, LogOut, Users, X, Edit3, MoveHorizontal, Rocket, UserPlus, Kanban, GripVertical, AlignLeft, Calendar, LayoutGrid, Sparkles, ChevronRight, AlertTriangle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -104,11 +104,13 @@ export default function KanbanApp() {
   const [isBoardModalOpen, setIsBoardModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
+  const [isDeleteBoardModalOpen, setIsDeleteBoardModalOpen] = useState(false);
   
   const [modalData, setModalData] = useState({ id: '', content: '', description: '', assigned_to_email: '', due_date: '', column_id: '' });
   const [boardInput, setBoardInput] = useState('');
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [columnInput, setColumnInput] = useState({ id: '', title: '' });
+  const [boardToDelete, setBoardToDelete] = useState<any>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
@@ -133,6 +135,17 @@ export default function KanbanApp() {
     if (cols) setColumns(cols.map(c => ({ ...c, tasks: tasks ? tasks.filter((t: any) => t.column_id === c.id) : [] })));
   };
 
+  const confirmDeleteBoard = async () => {
+    if (!boardToDelete) return;
+    const { error } = await supabase.from('boards').delete().eq('id', boardToDelete.id);
+    if (error) alert("Hata: " + error.message);
+    else {
+      fetchBoards(user.id);
+      setIsDeleteBoardModalOpen(false);
+      setBoardToDelete(null);
+    }
+  };
+
   const handleCreateBoard = async () => {
     if (!boardInput) return;
     const sc = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -149,22 +162,19 @@ export default function KanbanApp() {
     if (!joinCodeInput) return;
     const { data } = await supabase.from('boards').select('*').eq('share_code', joinCodeInput.toUpperCase());
     if (data && data.length > 0) {
+      const isAlreadyMember = boards.some(b => b.id === data[0].id);
+      if (isAlreadyMember) { alert("Zaten üyesiniz."); setIsJoinModalOpen(false); return; }
       await supabase.from('board_members').insert([{ board_id: data[0].id, user_id: user.id }]);
       fetchBoards(user.id);
       setIsJoinModalOpen(false);
       setJoinCodeInput('');
-    } else {
-      alert("Geçersiz kod!");
-    }
+    } else { alert("Geçersiz kod!"); }
   };
 
   const handleSaveColumn = async () => {
     if (!columnInput.title) return;
-    if (columnInput.id) {
-      await supabase.from('columns').update({ title: columnInput.title }).eq('id', columnInput.id);
-    } else {
-      await supabase.from('columns').insert([{ title: columnInput.title, board_id: activeBoard.id, user_id: user.id, position: columns.length }]);
-    }
+    if (columnInput.id) await supabase.from('columns').update({ title: columnInput.title }).eq('id', columnInput.id);
+    else await supabase.from('columns').insert([{ title: columnInput.title, board_id: activeBoard.id, user_id: user.id, position: columns.length }]);
     fetchKanbanData(activeBoard.id);
     setIsColumnModalOpen(false);
     setColumnInput({ id: '', title: '' });
@@ -213,57 +223,66 @@ export default function KanbanApp() {
 
         <div className="w-full max-w-[1600px] relative z-10 mb-20 px-4">
           <div className="grid grid-cols-2 gap-10">
-            <button onClick={() => setIsBoardModalOpen(true)} 
-              className="group bg-blue-600 p-14 rounded-2xl shadow-2xl shadow-blue-100 transition-all text-left hover:bg-blue-700 active:scale-95 flex flex-col items-start min-h-[350px] w-full border border-blue-700">
-              <div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center mb-10 group-hover:rotate-6 transition-transform shadow-inner"><Rocket size={40} className="text-white" /></div>
-              <h2 className="text-4xl font-black text-white mb-4">Yeni Proje Başlat</h2>
-              <p className="text-blue-100 font-medium text-lg leading-relaxed">Ekibin için modern bir çalışma alanı oluştur ve tüm süreçleri uçtan uca yönet.</p>
-            </button>
-            <button onClick={() => setIsJoinModalOpen(true)}
-              className="group bg-white p-14 rounded-2xl border border-slate-200 shadow-xl shadow-slate-100 transition-all text-left hover:border-blue-400 hover:shadow-2xl active:scale-95 flex flex-col items-start min-h-[350px] w-full">
-              <div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-10 group-hover:rotate-110 transition-transform"><UserPlus size={40} className="text-slate-400" /></div>
-              <h2 className="text-4xl font-black text-slate-800 mb-4">Mevcut Ekibe Katıl</h2>
-              <p className="text-slate-500 font-bold text-lg leading-relaxed">Paylaşım koduyla ekibinin çalışma alanına dahil ol ve işbirliğine hemen başla.</p>
-            </button>
+            <button onClick={() => setIsBoardModalOpen(true)} className="group bg-blue-600 p-14 rounded-2xl shadow-2xl shadow-blue-100 transition-all text-left hover:bg-blue-700 active:scale-95 flex flex-col items-start min-h-[350px] w-full border border-blue-700"><div className="w-20 h-20 bg-white/10 rounded-3xl flex items-center justify-center mb-10 group-hover:rotate-6 transition-transform shadow-inner"><Rocket size={40} className="text-white" /></div><h2 className="text-4xl font-black text-white mb-4">Yeni Proje Başlat</h2><p className="text-blue-100 font-medium text-lg leading-relaxed">Ekibin için modern bir çalışma alanı oluştur ve tüm süreçleri uçtan uca yönet.</p></button>
+            <button onClick={() => setIsJoinModalOpen(true)} className="group bg-white p-14 rounded-2xl border border-slate-200 shadow-xl shadow-slate-100 transition-all text-left hover:border-blue-400 hover:shadow-2xl active:scale-95 flex flex-col items-start min-h-[350px] w-full"><div className="w-20 h-20 bg-slate-50 rounded-3xl flex items-center justify-center mb-10 group-hover:rotate-110 transition-transform"><UserPlus size={40} className="text-slate-400" /></div><h2 className="text-4xl font-black text-slate-800 mb-4">Mevcut Ekibe Katıl</h2><p className="text-slate-500 font-bold text-lg leading-relaxed">Paylaşım koduyla ekibinin çalışma alanına dahil ol ve işbirliğine hemen başla.</p></button>
           </div>
         </div>
 
         <div className="w-full max-w-[1600px] relative z-10 px-4">
-           <div className="flex items-center gap-4 mb-12 ml-2">
-             <div className="p-3 bg-blue-50 rounded-2xl shadow-sm border border-blue-100"><LayoutGrid size={24} className="text-blue-500" /></div>
-             <h3 className="text-xl font-black text-slate-700 uppercase tracking-[0.15em]">Çalışma Alanların</h3>
-             <div className="h-[2px] flex-1 bg-gradient-to-r from-slate-200 to-transparent ml-4"></div>
-           </div>
+           <div className="flex items-center gap-4 mb-12 ml-2"><div className="p-3 bg-blue-50 rounded-2xl shadow-sm border border-blue-100"><LayoutGrid size={24} className="text-blue-500" /></div><h3 className="text-xl font-black text-slate-700 uppercase tracking-[0.15em]">Çalışma Alanların</h3><div className="h-[2px] flex-1 bg-gradient-to-r from-slate-200 to-transparent ml-4"></div></div>
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 pb-20">
             {boards.map((b: any) => (
-              <div key={b.id} onClick={() => { setActiveBoard(b); fetchKanbanData(b.id); }} 
-                className="group relative bg-white p-10 rounded-2xl border border-slate-100 shadow-lg shadow-slate-200/50 cursor-pointer hover:shadow-2xl hover:-translate-y-1 hover:border-blue-200 transition-all active:scale-95 flex flex-col min-h-[220px]"
-              >
-                <div className="absolute top-6 right-6 p-2 bg-blue-50 rounded-xl text-blue-600 opacity-0 group-hover:opacity-100 transition-all"><Sparkles size={16} /></div>
+              <div key={b.id} onClick={() => { setActiveBoard(b); fetchKanbanData(b.id); }} className="group relative bg-white p-10 rounded-[2.5rem] border border-slate-100 shadow-lg shadow-slate-200/50 cursor-pointer hover:shadow-2xl hover:-translate-y-1 hover:border-blue-200 transition-all active:scale-95 flex flex-col min-h-[220px]">
+                {user.id === b.owner_id && (<button onClick={(e) => { e.stopPropagation(); setBoardToDelete(b); setIsDeleteBoardModalOpen(true); }} className="absolute top-6 right-6 p-2.5 bg-rose-50 text-rose-400 rounded-xl hover:bg-rose-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 z-20"><Trash2 size={16} /></button>)}
+                <div className="absolute top-6 right-16 p-2 bg-blue-50 rounded-xl text-blue-600 opacity-0 group-hover:opacity-100 transition-all"><Sparkles size={16} /></div>
                 <h3 className="font-black text-2xl text-slate-700 group-hover:text-blue-600 transition-colors mb-auto leading-tight pr-4">{b.name}</h3>
-                <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-100">
-                   <div className="flex flex-col">
-                     <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Erişim Kodu</span>
-                     <span className="text-xs font-bold text-slate-600 bg-slate-50 px-4 py-1.5 rounded-xl border border-slate-100">{b.share_code}</span>
-                   </div>
-                   <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all transform group-hover:translate-x-1 shadow-sm">→</div>
-                </div>
+                <div className="flex items-center justify-between mt-8 pt-6 border-t border-slate-100"><div className="flex flex-col"><span className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Erişim Kodu</span><span className="text-xs font-bold text-slate-600 bg-slate-50 px-4 py-1.5 rounded-xl border border-slate-100">{b.share_code}</span></div><div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-all transform group-hover:translate-x-1 shadow-sm">→</div></div>
               </div>
             ))}
            </div>
         </div>
 
-        {/* YENİ PROJE MODALI */}
+        {/* --- MODALLAR --- */}
         {isBoardModalOpen && (<div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md z-[999] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-slate-900 animate-in zoom-in duration-200 border"><div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/30"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg tracking-tight"><div className="p-2 bg-blue-50 rounded-lg text-blue-600"><Rocket size={18} /></div> Yeni Proje</h3><button onClick={() => setIsBoardModalOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={20} /></button></div><div className="p-6"><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Proje Adı</label><input autoFocus type="text" value={boardInput} onChange={(e) => setBoardInput(e.target.value)} placeholder="Örn: Pazarlama Kampanyası" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all" /></div></div><div className="p-6 bg-slate-50/50 border-t border-slate-50 flex gap-3"><button onClick={() => setIsBoardModalOpen(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all uppercase text-[10px] tracking-widest">İptal</button><button onClick={handleCreateBoard} className="flex-1 px-4 py-3 bg-blue-600 rounded-xl text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all uppercase text-[10px] tracking-widest">Oluştur</button></div></div></div>)}
 
-        {/* KATILIM MODALI */}
         {isJoinModalOpen && (<div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md z-[999] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-slate-900 animate-in zoom-in duration-200 border"><div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/30"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg tracking-tight"><div className="p-2 bg-blue-50 rounded-lg text-blue-600"><UserPlus size={18} /></div> Ekibe Katıl</h3><button onClick={() => setIsJoinModalOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={20} /></button></div><div className="p-6"><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Paylaşım Kodu</label><input autoFocus type="text" value={joinCodeInput} onChange={(e) => setJoinCodeInput(e.target.value)} placeholder="6 Haneli Kod" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all uppercase" /></div></div><div className="p-6 bg-slate-50/50 border-t border-slate-50 flex gap-3"><button onClick={() => setIsJoinModalOpen(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all uppercase text-[10px] tracking-widest">İptal</button><button onClick={handleJoinBoard} className="flex-1 px-4 py-3 bg-blue-600 rounded-xl text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all uppercase text-[10px] tracking-widest">Katıl</button></div></div></div>)}
+
+        {/* --- PROJE SİLME ONAY MODALI --- */}
+        {isDeleteBoardModalOpen && boardToDelete && (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[1000] flex items-center justify-center p-4">
+            <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden text-slate-900 animate-in zoom-in duration-200 border border-rose-100">
+              <div className="p-6 border-b border-rose-50 flex justify-between items-center bg-rose-50/30">
+                <h3 className="font-bold text-rose-600 flex items-center gap-2 text-lg tracking-tight">
+                  <div className="p-2 bg-rose-100 rounded-lg"><AlertTriangle size={18} /></div> 
+                  Projeyi Sil
+                </h3>
+                <button onClick={() => setIsDeleteBoardModalOpen(false)} className="p-1.5 hover:bg-rose-100 rounded-full text-rose-400 transition-colors"><X size={20} /></button>
+              </div>
+              <div className="p-8 text-center space-y-4">
+                <p className="text-slate-600 font-bold text-lg leading-snug">
+                  "<span className="text-slate-900 font-black">{boardToDelete.name}</span>" projesini silmek istediğinize emin misiniz?
+                </p>
+                <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100">
+                  <p className="text-[11px] font-black text-rose-400 uppercase tracking-widest mb-1">Uyarı</p>
+                  <p className="text-xs text-rose-500 font-bold leading-relaxed">
+                    Bu işlem kalıcıdır. Tüm sütunlar, görevler ve üyeler projeden silinecektir.
+                  </p>
+                </div>
+              </div>
+              <div className="p-6 bg-slate-50/50 border-t border-slate-50 flex gap-3">
+                <button onClick={() => setIsDeleteBoardModalOpen(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all uppercase text-[10px] tracking-widest">Vazgeç</button>
+                <button onClick={confirmDeleteBoard} className="flex-1 px-4 py-3 bg-rose-500 rounded-xl text-white font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all uppercase text-[10px] tracking-widest">Projeyi Sil</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-white p-6 flex flex-col items-center font-sans text-slate-900">
+      {/* ... KANBAN EKRANI (DEĞİŞMEDİ) ... */}
       <DndContext sensors={sensors} collisionDetection={rectIntersection} onDragStart={(e) => setActiveItem(e.active.data.current)} onDragEnd={onDragEnd}>
         <div className="w-full max-w-[1600px]">
           <header className="flex items-center justify-between mb-10 bg-white/80 backdrop-blur-md p-5 rounded-2xl border border-slate-100 sticky top-4 z-[50]">
@@ -273,7 +292,6 @@ export default function KanbanApp() {
             </div>
             <div className="flex gap-4"><button onClick={() => supabase.auth.signOut().then(() => router.push("/login"))} className="p-3 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm"><LogOut size={22} /></button></div>
           </header>
-          
           <div className="flex justify-center w-full">
             <div className="flex flex-row gap-6 overflow-x-auto pb-10 px-8 scrollbar-hide items-start">
               <SortableContext items={columns.map(c => c.id)} strategy={horizontalListSortingStrategy}>
@@ -287,39 +305,16 @@ export default function KanbanApp() {
                   </SortableColumn>
                 ))}
               </SortableContext>
-              
-              <button onClick={() => { setColumnInput({ id: '', title: '' }); setIsColumnModalOpen(true); }} 
-                className="w-12 h-12 shrink-0 bg-slate-100 hover:bg-slate-200 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all duration-200 mt-2 text-slate-400 group active:scale-95 shadow-sm">
-                <Plus size={24} strokeWidth={3} className="group-hover:text-slate-600"/>
-              </button>
+              <button onClick={() => { setColumnInput({ id: '', title: '' }); setIsColumnModalOpen(true); }} className="w-12 h-12 shrink-0 bg-slate-100 hover:bg-slate-200 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all duration-200 mt-2 text-slate-400 group active:scale-95 shadow-sm"><Plus size={24} strokeWidth={3} className="group-hover:text-slate-600"/></button>
             </div>
           </div>
         </div>
-        
         <DragOverlay dropAnimation={{ duration: 250 }}>
-          {activeItem?.type === 'Column' ? (
-            <div className="bg-slate-50 p-5 rounded-2xl w-80 min-h-[400px] shadow-2xl border border-slate-200 opacity-90 scale-105 text-slate-900">
-              <div className="flex items-center gap-2 mb-4 px-1">
-                 <MoveHorizontal size={18} className="text-slate-400" />
-                 <h2 className="font-black text-slate-400 uppercase text-[11px]">{activeItem.column.title}</h2>
-              </div>
-              <div className="bg-slate-200/30 rounded-xl p-2 shadow-inner border border-slate-200/50">
-                {activeItem.column.tasks.map((t: any) => (<div key={t.id} className="bg-white p-4 rounded-xl border mb-3 shadow-sm text-sm font-bold text-slate-800">{t.content}</div>))}
-              </div>
-            </div>
-          ) : activeItem?.type === 'Task' ? (
-            <div className="bg-white p-4 rounded-xl border-2 shadow-2xl flex gap-3 items-start w-80 opacity-95 scale-105 text-slate-900 border-blue-500">
-              <GripVertical size={18} className="text-slate-300 mt-1" />
-              <span className="text-sm font-bold text-slate-800 leading-snug">{activeItem.task.content}</span>
-            </div>
-          ) : null}
+          {activeItem?.type === 'Column' ? (<div className="bg-slate-50 p-5 rounded-2xl w-80 min-h-[400px] shadow-2xl border border-slate-200 opacity-90 scale-105 text-slate-900"><div className="flex items-center gap-2 mb-4 px-1"><MoveHorizontal size={18} className="text-slate-400" /><h2 className="font-black text-slate-400 uppercase text-[11px]">{activeItem.column.title}</h2></div><div className="bg-slate-200/30 rounded-xl p-2 shadow-inner border border-slate-200/50">{activeItem.column.tasks.map((t: any) => (<div key={t.id} className="bg-white p-4 rounded-xl border mb-3 shadow-sm text-sm font-bold text-slate-800">{t.content}</div>))}</div></div>) : activeItem?.type === 'Task' ? (<div className="bg-white p-4 rounded-xl border-2 shadow-2xl flex gap-3 items-start w-80 opacity-95 scale-105 text-slate-900 border-blue-500"><GripVertical size={18} className="text-slate-300 mt-1" /><span className="text-sm font-bold text-slate-800 leading-snug">{activeItem.task.content}</span></div>) : null}
         </DragOverlay>
       </DndContext>
-
-      {/* GÖREV DÜZENLEME MODALI */}
+      {/* MODALLAR (AYNI KALDI) */}
       {isTaskModalOpen && (<div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md z-[999] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-slate-900 font-sans animate-in zoom-in duration-200 border"><div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/30"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg tracking-tight"><div className="p-2 bg-blue-50 rounded-lg text-blue-600"><Edit3 size={18} /></div> {modalData.id ? "Düzenle" : "Yeni Görev"}</h3><button onClick={() => setIsTaskModalOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={20} /></button></div><div className="p-6 space-y-5"><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Başlık</label><input autoFocus type="text" value={modalData.content} onChange={(e) => setModalData({...modalData, content: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all" /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Sorumlu</label><input type="email" value={modalData.assigned_to_email} onChange={(e) => setModalData({...modalData, assigned_to_email: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all" /></div><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Tarih</label><input type="date" value={modalData.due_date} onChange={(e) => setModalData({...modalData, due_date: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all cursor-pointer" /></div></div><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Açıklama</label><textarea value={modalData.description} onChange={(e) => setModalData({...modalData, description: e.target.value})} rows={2} className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 resize-none text-slate-600 font-medium text-sm transition-all" /></div></div><div className="p-6 bg-slate-50/50 border-t border-slate-50 flex gap-3"><button onClick={() => setIsTaskModalOpen(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all uppercase text-[10px] tracking-widest">İptal</button><button onClick={handleSaveTask} className="flex-1 px-4 py-3 bg-blue-600 rounded-xl text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all uppercase text-[10px] tracking-widest">Kaydet</button></div></div></div>)}
-
-      {/* SÜTUN MODALI */}
       {isColumnModalOpen && (<div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md z-[999] flex items-center justify-center p-4"><div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden text-slate-900 animate-in zoom-in duration-200 border"><div className="p-6 border-b border-slate-50 flex justify-between items-center bg-slate-50/30"><h3 className="font-bold text-slate-800 flex items-center gap-2 text-lg tracking-tight"><div className="p-2 bg-blue-50 rounded-lg text-blue-600"><LayoutGrid size={18} /></div> {columnInput.id ? "Sütun Düzenle" : "Yeni Sütun"}</h3><button onClick={() => setIsColumnModalOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><X size={20} /></button></div><div className="p-6"><div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[0.1em]">Sütun Başlığı</label><input autoFocus type="text" value={columnInput.title} onChange={(e) => setColumnInput({...columnInput, title: e.target.value})} placeholder="Örn: Yapılacaklar" className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:border-blue-500 font-bold text-slate-700 text-sm transition-all" /></div></div><div className="p-6 bg-slate-50/50 border-t border-slate-50 flex gap-3"><button onClick={() => setIsColumnModalOpen(false)} className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-all uppercase text-[10px] tracking-widest">İptal</button><button onClick={handleSaveColumn} className="flex-1 px-4 py-3 bg-blue-600 rounded-xl text-white font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all uppercase text-[10px] tracking-widest">Kaydet</button></div></div></div>)}
     </div>
   );
